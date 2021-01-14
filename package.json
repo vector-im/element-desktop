@@ -35,7 +35,8 @@
     "electron-window-state": "^4.1.0",
     "minimist": "^1.2.3",
     "png-to-ico": "^2.1.0",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "dbus-next": "^0.9.1"
   },
   "devDependencies": {
     "asar": "^2.0.1",
