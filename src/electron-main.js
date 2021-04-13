@@ -28,7 +28,7 @@ const argv = require('minimist')(process.argv, {
 });
 
 const {
-    app, ipcMain, powerSaveBlocker, BrowserWindow, Menu, autoUpdater, protocol, dialog,
+    app, ipcMain, powerSaveBlocker, BrowserWindow, Menu, autoUpdater, protocol, dialog, TouchBar, nativeImage,
 } = require('electron');
 const AutoLaunch = require('auto-launch');
 const path = require('path');
@@ -44,6 +44,7 @@ const Store = require('electron-store');
 
 const fs = require('fs');
 const afs = fs.promises;
+const request = require("request");
 
 const crypto = require('crypto');
 let keytar;
@@ -480,6 +481,52 @@ ipcMain.on('ipcCall', async function(ev, payload) {
                 await keytar.deletePassword("riot.im", `${args[0]}|${args[1]}`);
             } catch (e) {}
             break;
+
+        case "breadcrumbs": {
+            const { TouchBarPopover, TouchBarButton } = TouchBar;
+
+            const recentsBar = new TouchBar({
+                items: args[0].map(r => {
+                    const defaultColors = ['#0DBD8B', '#368bd6', '#ac3ba8'];
+                    let total = 0;
+                    for (let i = 0; i < r.roomId.length; ++i) {
+                        total += r.roomId.charCodeAt(i);
+                    }
+
+                    const button = new TouchBarButton({
+                        label: r.initial,
+                        backgroundColor: defaultColors[total % defaultColors.length],
+                        click: () => {
+                            global.mainWindow.loadURL(`vector://vector/webapp/#/room/${r.roomId}`);
+                        },
+                    });
+                    if (r.avatarUrl) {
+                        request({
+                            url: r.avatarUrl,
+                            encoding: null,
+                        }, (err, resp, buffer) => {
+                            if (err) return;
+                            button.icon = nativeImage.createFromBuffer(buffer);
+                            button.label = null;
+                            button.backgroundColor = null;
+                        });
+                    }
+                    return button;
+                }),
+            });
+
+            const touchBar = new TouchBar({
+                items: [
+                    new TouchBarPopover({
+                        label: "Recents",
+                        showCloseButton: true,
+                        items: recentsBar,
+                    }),
+                ],
+            });
+            global.mainWindow.setTouchBar(touchBar);
+            break;
+        }
 
         default:
             mainWindow.webContents.send('ipcReply', {
