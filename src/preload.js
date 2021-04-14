@@ -32,8 +32,7 @@ const CHANNELS = [
     "seshatReply",
     "setBadgeCount",
     "update-downloaded",
-    "userDownloadCompleted",
-    "userDownloadOpen",
+    "userDownload",
 ];
 
 contextBridge.exposeInMainWorld(
@@ -45,6 +44,13 @@ contextBridge.exposeInMainWorld(
                 return;
             }
             ipcRenderer.on(channel, listener);
+        },
+        removeListener(channel, listener) {
+            if (!CHANNELS.includes(channel)) {
+                console.error(`Unknown IPC channel ${channel} ignored`);
+                return;
+            }
+            ipcRenderer.removeListener(channel, listener);
         },
         send(channel, ...args) {
             if (!CHANNELS.includes(channel)) {

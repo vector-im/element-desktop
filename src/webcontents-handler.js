@@ -206,10 +206,6 @@ function onEditableContextMenu(ev, params) {
     ev.preventDefault();
 }
 
-ipcMain.on('userDownloadOpen', function(ev, {path}) {
-    shell.openPath(path);
-});
-
 module.exports = (webContents) => {
     webContents.on('new-window', onWindowOrNavigate);
     webContents.on('will-navigate', (ev, target) => {
@@ -228,13 +224,60 @@ module.exports = (webContents) => {
     });
 
     webContents.session.on('will-download', (event, item) => {
-        item.once('done', (event, state) => {
-            if (state === 'completed') {
-                const savePath = item.getSavePath();
-                webContents.send('userDownloadCompleted', {
-                    path: savePath,
-                    name: path.basename(savePath),
-                });
+        let started = false;
+
+        const ipcHandler = function(ev, {action, path}) {
+            if (path !== item.savePath) return;
+
+            switch (action) {
+                case "download":
+                    shell.openPath(path);
+                    ipcMain.off("userDownload", ipcHandler);
+                    break;
+                case "pause":
+                    item.pause();
+                    break;
+                case "resume":
+                    item.resume();
+                    break;
+                case "cancel":
+                    item.cancel();
+                    ipcMain.off("userDownload", ipcHandler);
+                    break;
+                case "done":
+                    ipcMain.off("userDownload", ipcHandler);
+                    break;
+            }
+        };
+
+        ipcMain.on("userDownload", ipcHandler);
+
+        item.on("updated", (event, state) => {
+            if (!item.savePath) return;
+            webContents.send("userDownload", {
+                state,
+                path: item.savePath,
+                name: path.basename(item.savePath),
+                totalBytes: item.getTotalBytes(),
+                receivedBytes: item.getReceivedBytes(),
+                begin: !started,
+            });
+
+            if (!started) started = true;
+        });
+        item.once("done", (event, state) => {
+            if (!item.savePath) return;
+            webContents.send("userDownload", {
+                state,
+                path: item.savePath,
+                name: path.basename(item.savePath),
+                totalBytes: item.getTotalBytes(),
+                receivedBytes: item.getReceivedBytes(),
+                terminal: true,
+            });
+
+            if (state === "interrupted") {
+                ipcMain.off("userDownload", ipcHandler);
             }
         });
     });
