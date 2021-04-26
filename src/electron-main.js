@@ -214,6 +214,7 @@ async function setupGlobals() {
     trayConfig = {
         icon_path: iconPath,
         brand: vectorConfig.brand || 'Element',
+        blinkEnabled: store.get('trayIconBlinkEnabled'),
     };
 
     // launcher
@@ -381,6 +382,13 @@ ipcMain.on('ipcCall', async function(ev, payload) {
                 tray.destroy();
             }
             store.set('minimizeToTray', args[0]);
+            break;
+        case 'getTrayIconBlinkEnabled':
+            ret = store.get('trayIconBlinkEnabled');
+            break;
+        case 'setTrayIconBlinkEnabled':
+            store.set('trayIconBlinkEnabled', args[0]);
+            tray.setEnableBlinking(args[0]);
             break;
         case 'getAutoHideMenuBarEnabled':
             ret = global.mainWindow.autoHideMenuBar;

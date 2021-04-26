@@ -15,18 +15,60 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const {app, Tray, Menu, nativeImage} = require('electron');
+const {app, ipcMain, Tray, Menu, nativeImage} = require('electron');
 const pngToIco = require('png-to-ico');
 const path = require('path');
 const fs = require('fs');
+const {Buffer} = require('buffer');
 
 let trayIcon = null;
+
+const blink = {
+    emptyIcon: nativeImage.createFromBitmap(Buffer.alloc(4, 0), {width: 1, height: 1}),
+    currentIcon: null,
+    blinkEnabled: false,
+    blinkInterval: null,
+    setEnableBlinking: function(enable) {
+        this.blinkEnabled = enable;
+        if (!enable) {
+            this.stopBlinking();
+        }
+    },
+    blinkHandler: function(_ev, count) {
+        if (count === 0) {
+            this.stopBlinking();
+        } else {
+            if (!this.blinkEnabled || this.blinkInterval) {
+                return;
+            }
+            let iconState = false;
+            this.blinkInterval = setInterval(() => {
+                if (trayIcon) trayIcon.setImage(iconState ? this.currentIcon : this.emptyIcon);
+                iconState = !iconState;
+            }, 2000);
+        }
+    },
+    stopBlinking: function() {
+        if (this.blinkInterval) {
+            clearInterval(this.blinkInterval);
+            if (trayIcon) trayIcon.setImage(this.currentIcon);
+        }
+        this.blinkInterval = null;
+    },
+    cleanup: function() {
+        this.stopBlinking();
+        ipcMain.removeListener('setBadgeCount', this.blinkHandler);
+    },
+};
+blink.blinkHandler = blink.blinkHandler.bind(blink);
+blink.setEnableBlinking = blink.setEnableBlinking.bind(blink);
 
 exports.hasTray = function hasTray() {
     return (trayIcon !== null);
 };
 
 exports.destroy = function() {
+    blink.cleanup();
     if (trayIcon) {
         trayIcon.destroy();
         trayIcon = null;
@@ -52,7 +94,7 @@ exports.create = function(config) {
             label: `Show/Hide ${config.brand}`,
             click: toggleWin,
         },
-        { type: 'separator' },
+        {type: 'separator'},
         {
             label: 'Quit',
             click: function() {
@@ -61,7 +103,10 @@ exports.create = function(config) {
         },
     ]);
 
+    blink.blinkEnabled = config.blinkEnabled;
+
     const defaultIcon = nativeImage.createFromPath(config.icon_path);
+    blink.currentIcon = defaultIcon;
 
     trayIcon = new Tray(defaultIcon);
     trayIcon.setToolTip(config.brand);
@@ -69,6 +114,7 @@ exports.create = function(config) {
     trayIcon.on('click', toggleWin);
 
     let lastFavicon = null;
+    ipcMain.on('setBadgeCount', blink.blinkHandler);
     global.mainWindow.webContents.on('page-favicon-updated', async function(ev, favicons) {
         if (!favicons || favicons.length <= 0 || !favicons[0].startsWith('data:')) {
             if (lastFavicon !== null) {
@@ -96,11 +142,14 @@ exports.create = function(config) {
             }
         }
 
-        trayIcon.setImage(newFavicon);
+        if (trayIcon && !(blink.blinkInterval && blink.blinkEnabled)) trayIcon.setImage(newFavicon);
+        blink.currentIcon = newFavicon;
         global.mainWindow.setIcon(newFavicon);
     });
 
     global.mainWindow.webContents.on('page-title-updated', function(ev, title) {
-        trayIcon.setToolTip(title);
+        if (trayIcon) trayIcon.setToolTip(title);
     });
 };
+
+exports.setEnableBlinking = blink.setEnableBlinking;
