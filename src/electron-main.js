@@ -939,7 +939,17 @@ app.on('ready', async () => {
             webgl: false,
         },
     });
-    mainWindow.loadURL('vector://vector/webapp/');
+
+    if (vectorConfig['proxy']) {
+      console.log(`Starting electron through proxy: ${vectorConfig['proxy']}`);
+      mainWindow.webContents.session.setProxy({proxyRules: vectorConfig['proxy']})
+      .then(() => {
+        mainWindow.loadURL('vector://vector/webapp/');
+      });
+    } else {
+      mainWindow.loadURL('vector://vector/webapp/');
+    }
+
     Menu.setApplicationMenu(vectorMenu);
 
     // Handle spellchecker
