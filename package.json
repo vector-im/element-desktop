@@ -24,6 +24,7 @@
     "build32": "electron-builder --ia32",
     "build64": "electron-builder --x64",
     "build": "electron-builder",
+    "build:appimage": "electron-builder -l appimage --publish=never",
     "docker:setup": "docker build -t element-desktop-dockerbuild dockerbuild",
     "docker:build:native": "scripts/in-docker.sh yarn run hak",
     "docker:build": "scripts/in-docker.sh yarn run build",
